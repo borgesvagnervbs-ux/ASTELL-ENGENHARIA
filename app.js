@@ -1,6 +1,6 @@
 // ===== CONFIGURAÇÃO: Supabase > Project Settings > API (use SOMENTE a chave anon/publishable) =====
 const SUPABASE_URL = 'https://vzldniltcoralimkkcgb.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'sb_publishable_pUTSkvGqSPUuMbVhZakEtg_Vh2AbAsJ';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6bGRuaWx0Y29yYWxpbWtrY2diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2ODg4OTksImV4cCI6MjEwNzI2NDg5OX0.vQs36WQdXP8BWc8YHpYpV2_wjS5uG676n9vi4NH1prI';
 // =================================================================================================
 let sb; try { sb = supabase.createClient(new URL(SUPABASE_URL.trim()).origin, SUPABASE_KEY.trim()); } catch (e) { sb = null; }
 const $ = s => document.querySelector(s), app = $('#app');
