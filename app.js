@@ -130,11 +130,13 @@ const views = {
   },
   async admin() {
     if (!staff()) return location.hash = '#home';
-    const { data: cl } = await sb.from('profiles').select('id,email,name').eq('role', 'client');
+    const { data: cl } = await sb.from('client_cpfs').select('id,name,cpf_mask,claimed_by').order('created_at', { ascending: false });
     app.innerHTML = `<h2>Painel Astell</h2>` +
       formOf('newres', 'Nova residência', [['code', 'Código (ex.: AST-2026-002)'], ['name', 'Nome'], ['address', 'Endereço'], ['area_m2', 'Área (m²)', 'number'], ['floors', 'Pavimentos', 'number'], ['build_system', 'Sistema construtivo'], ['project_no', 'Nº do projeto'], ['start_date', 'Início', 'date'], ['delivery_date', 'Entrega', 'date'], ['tech_lead', 'Responsável técnico'], ['notes', 'Observações', 'textarea']].map(i => input(i).replace('required', '').replace(/name="(code|name)"/, 'name="$1" required')).join('')) +
-      formOf('link', `Vincular cliente à residência atual`, `<label>Cliente<select name="user_id">${(cl || []).map(c => `<option value="${c.id}">${esc(c.name)} (${esc(c.email)})</option>`).join('')}</select></label>`, 'Vincular') +
-      `<p class="notice">Para criar um cliente, convide o e-mail em Supabase > Authentication > Users > Invite. Ele aparece aqui após ativar a conta.</p>`;
+      formOf('cpfnew', 'Cadastrar cliente (CPF)', `<label>Nome<input name="name" required></label><label>CPF<input name="cpf" class="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" required></label><label>E-mail do cliente (opcional, recomendado)<input name="email" type="email"></label>`, 'Cadastrar') +
+      formOf('link', 'Vincular cliente à residência atual', `<label>Cliente<select name="cpf_id">${(cl || []).map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.cpf_mask)}</option>`).join('')}</select></label>`, 'Vincular') +
+      '<h3>Clientes cadastrados</h3>' + ((cl || []).map(c => `<div class="card"><b>${esc(c.name)}</b><span class="mute">${esc(c.cpf_mask)} · ${c.claimed_by ? 'Acesso ativo' : 'Aguardando primeiro acesso'}</span>${c.claimed_by ? `<br><button class="link" data-rel="${c.id}">Liberar CPF</button>` : ''}</div>`).join('') || '<p class="empty">Nenhum cliente cadastrado.</p>') +
+      '<p class="notice">O cliente entra com Google ou com e-mail e senha e depois informa o CPF. Se você cadastrar o e-mail dele, só a conta com esse e-mail consegue usar o CPF.</p>';
   },
 };
 
@@ -149,7 +151,8 @@ app.addEventListener('submit', async e => {
   else if (id === 'plan') { const file = f.file.files[0], path = `${rid}/planta_${Date.now()}_${file.name.replace(/[^\w.-]/g, '_')}`;
     r = await sb.storage.from('documents').upload(path, file); if (!r.error) r = await sb.from('floorplans').insert({ residence_id: rid, title: o.title, path }); }
   else if (id === 'pt') { r = await sb.from('plan_points').insert({ ...o, residence_id: rid, floorplan_id: S.planId, x: S.pend.x, y: S.pend.y }); S.pend = null; }
-  else if (id === 'link') r = await sb.from('residence_users').insert({ user_id: o.user_id, residence_id: rid });
+  else if (id === 'link') r = await sb.rpc('admin_link_cpf', { p_cpf: o.cpf_id, p_res: rid });
+  else if (id === 'cpfnew') { const cpf = cpfDigits(o.cpf); if (!cpfOk(cpf)) return toast('CPF inválido.', 1); r = await sb.rpc('admin_register_cpf', { p_name: o.name, p_cpf: cpf, p_email: o.email || null }); }
   else if (id === 'newres') { r = await sb.from('residences').insert(o).select().single(); if (!r.error) { await loadRes(r.data.id); return toast('Residência cadastrada.'); } }
   else if (id === 'doc') { const file = f.file.files[0], path = `${rid}/${Date.now()}_${file.name.replace(/[^\w.-]/g, '_')}`;
     r = await sb.storage.from('documents').upload(path, file); if (!r.error) { r = await sb.from('documents').insert({ residence_id: rid, title: o.title, category: o.category, version: o.version, description: o.description, path }); } }
@@ -158,6 +161,7 @@ app.addEventListener('submit', async e => {
 });
 app.addEventListener('click', async e => {
   const d = e.target.dataset;
+  if (d.rel && confirm('Liberar este CPF? O acesso atual do cliente será removido e outro cadastro poderá usá-lo.')) { const { error } = await sb.rpc('admin_release_cpf', { p_cpf: d.rel }); error ? toast('Não foi possível liberar.', 1) : toast('CPF liberado.'); route(); }
   if (d.out !== undefined) sb.auth.signOut();
   if (d.print !== undefined) print();
   if (d.place !== undefined) { S.place = !S.place; S.pend = null; route(); }
@@ -188,6 +192,14 @@ async function loadRes(selectId) {
 $('#resSel').onchange = e => { S.cur = S.res.find(r => r.id === e.target.value); route(); };
 
 const GOOGLE_SVG = '<svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.7a14.5 14.5 0 0 1 0-9.4l-7.9-6.1a24 24 0 0 0 0 21.6l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>';
+function cpfDigits(v) { return String(v || '').replace(/\D/g, '').slice(0, 11); }
+function cpfMask(v) { return cpfDigits(v).replace(/^(\d{3})(\d)/, '$1.$2').replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1-$2'); }
+function cpfOk(d) { if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false; for (let t = 9; t < 11; t++) { let s = 0; for (let i = 0; i < t; i++) s += d[i] * (t + 1 - i); if ((s * 10) % 11 % 10 != d[t]) return false; } return true; }
+const PW_RULES = [['Mínimo de 8 caracteres', p => p.length >= 8], ['Letra maiúscula', p => /[A-Z]/.test(p)], ['Letra minúscula', p => /[a-z]/.test(p)], ['Número', p => /\d/.test(p)], ['Caractere especial (! @ # $ ...)', p => /[^A-Za-z0-9]/.test(p)]];
+const pwList = p => PW_RULES.map(([t, f]) => `<li class="${f(p) ? 'ok' : ''}">${f(p) ? '✓' : '○'} ${t}</li>`).join('');
+const strongPw = p => PW_RULES.every(([, f]) => f(p));
+const CPF_INPUT = id => `<label>CPF<input id="${id}" class="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" required autocomplete="off"></label>`;
+
 function loginScreen(mode = 'login') {
   $('#top').hidden = $('#nav').hidden = true;
   const su = mode === 'signup', back = location.origin + location.pathname;
@@ -196,12 +208,12 @@ function loginScreen(mode = 'login') {
     <h2>${su ? 'Crie sua conta' : 'Bem-vindo à sua casa Astell'}</h2>
     <button type="button" class="btn-google" id="gg">${GOOGLE_SVG}<span>${su ? 'Cadastrar com o Google' : 'Entrar com o Google'}</span></button>
     <div class="or"><span>ou</span></div>
-    ${su ? '<label>Nome<input id="nm" required autocomplete="name"></label>' : ''}
+    ${su ? '<label>Nome completo<input id="nm" required autocomplete="name"></label>' + CPF_INPUT('cp') : ''}
     <label>E-mail<input id="em" type="email" required autocomplete="username"></label>
-    <label>Senha<input id="pw" type="password" required ${su ? 'minlength="8"' : ''} autocomplete="${su ? 'new-password' : 'current-password'}"></label>
-    ${su ? '<label>Confirmar senha<input id="pw2" type="password" required autocomplete="new-password"></label>' : ''}
+    <label>Senha<input id="pw" type="password" required autocomplete="${su ? 'new-password' : 'current-password'}"></label>
+    ${su ? `<ul class="pwrules" id="pr">${pwList('')}</ul><label>Confirmar senha<input id="pw2" type="password" required autocomplete="new-password"></label>` : ''}
     <button class="btn-main">${su ? 'Criar conta' : 'Entrar na minha casa'}</button>
-    ${su ? '<p class="fine">A senha deve ter pelo menos 8 caracteres. Depois do cadastro, a Astell vincula você à sua residência; até lá, nenhuma informação de casa é exibida.</p>' : '<button type="button" id="rs" class="btn-text">Esqueci minha senha</button>'}
+    ${su ? '<p class="fine">Você usará o e-mail e a senha para entrar. O CPF serve para localizar a residência cadastrada pela Astell.</p>' : '<button type="button" id="rs" class="btn-text">Esqueci minha senha</button>'}
     <p class="switch">${su ? 'Já tem conta?' : 'Ainda não tem conta?'} <button type="button" id="sw" class="btn-text">${su ? 'Entrar' : 'Cadastre-se'}</button></p>
   </form></div>`;
   $('#sw').onclick = () => loginScreen(su ? 'login' : 'signup');
@@ -209,9 +221,11 @@ function loginScreen(mode = 'login') {
   $('#lf').onsubmit = async e => {
     e.preventDefault(); const email = $('#em').value.trim(), password = $('#pw').value;
     if (!su) { const { error } = await sb.auth.signInWithPassword({ email, password }); if (error) toast(/confirm/i.test(error.message) ? 'Confirme seu e-mail antes de entrar.' : 'E-mail ou senha incorretos.', 1); return; }
-    if (password.length < 8) return toast('A senha precisa ter pelo menos 8 caracteres.', 1);
+    const cpf = cpfDigits($('#cp').value);
+    if (!cpfOk(cpf)) return toast('CPF inválido. Confira os números.', 1);
+    if (!strongPw(password)) return toast('A senha não atende a todos os requisitos.', 1);
     if (password !== $('#pw2').value) return toast('As senhas não são iguais.', 1);
-    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name: $('#nm').value.trim() }, emailRedirectTo: back } });
+    const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name: $('#nm').value.trim(), cpf }, emailRedirectTo: back } });
     if (error) return toast('Não foi possível criar a conta: ' + error.message, 1);
     if (data.user && data.user.identities && data.user.identities.length === 0) return toast('Este e-mail já tem cadastro. Entre ou recupere a senha.', 1);
     if (!data.session) { loginScreen('login'); toast('Conta criada! Enviamos um e-mail para você confirmar o cadastro.'); }
@@ -219,15 +233,47 @@ function loginScreen(mode = 'login') {
   if (!su) $('#rs').onclick = async () => { const v = $('#em').value.trim(); if (!v) return toast('Digite seu e-mail primeiro.', 1); await sb.auth.resetPasswordForEmail(v, { redirectTo: back }); toast('Se o e-mail existir, enviamos um link de recuperação.'); };
 }
 
+async function claim(cpf) {
+  const { data, error } = await sb.rpc('claim_cpf', { p_cpf: cpf });
+  if (error || !data) return { ok: false, msg: 'Não foi possível verificar o CPF agora. Tente novamente.' };
+  if (data.ok) { sb.auth.updateUser({ data: { cpf: null } }); return data; }
+  return { ok: false, msg: { INVALID: 'CPF inválido.', LIMIT: 'Muitas tentativas. Aguarde cerca de 1 hora ou fale com a Astell.', UNAVAILABLE: 'CPF não encontrado ou indisponível. Confira os números ou fale com a Astell.' }[data.code] || 'Não foi possível verificar o CPF.' };
+}
+
+function cpfScreen(notice) {
+  $('#top').hidden = $('#nav').hidden = true;
+  app.innerHTML = `<div class="login"><form id="cf"><h1>ASTELL<span>HOME</span></h1><p class="tag">Falta só uma etapa</p><h2>Confirme seu CPF</h2>
+    <p class="lead">Informe o CPF cadastrado pela Astell para acessar os dados da sua residência.</p>${notice ? `<p class="warn">${esc(notice)}</p>` : ''}
+    ${CPF_INPUT('cp')}<button class="btn-main">Confirmar CPF</button><button type="button" id="so" class="btn-text">Sair</button></form></div>`;
+  $('#cf').onsubmit = async e => {
+    e.preventDefault(); const cpf = cpfDigits($('#cp').value);
+    if (!cpfOk(cpf)) return toast('CPF inválido. Confira os números.', 1);
+    const r = await claim(cpf); if (!r.ok) return toast(r.msg, 1);
+    toast(r.residences ? 'CPF confirmado! Sua residência foi encontrada.' : 'CPF confirmado. A Astell ainda vai vincular sua residência.');
+    const { data } = await sb.auth.getSession(); start(data.session);
+  };
+  $('#so').onclick = () => sb.auth.signOut();
+}
+
 async function start(session) {
   if (!session) { S.profile = null; S.cur = null; return loginScreen(); }
   const { data } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (!data) return fail('Sua conta existe, mas ainda não tem perfil no banco. Peça à Astell para conferir se o schema.sql foi executado antes da criação do usuário.');
-  S.profile = data; $('#top').hidden = $('#nav').hidden = false;
+  S.profile = data;
+  if (data.role === 'client' && !data.cpf_claimed) {
+    const { data: rs } = await sb.from('residences').select('id').limit(1);
+    if (!(rs || []).length) {
+      const pend = (session.user.user_metadata || {}).cpf;
+      if (pend) { const r = await claim(pend); if (r.ok) { const { data: s2 } = await sb.auth.getSession(); return start(s2.session); } return cpfScreen(r.msg); }
+      return cpfScreen();
+    }
+  }
+  $('#top').hidden = $('#nav').hidden = false;
   await loadRes();
 }
 sb.auth.getSession().then(({ data }) => start(data.session));
-sb.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_IN' || ev === 'SIGNED_OUT') setTimeout(() => start(s), 0); });
+sb.auth.onAuthStateChange((ev, s) => { if (ev === 'SIGNED_IN' && S.profile && s && S.profile.id === s.user.id) return;
+  if (ev === 'SIGNED_IN' || ev === 'SIGNED_OUT') setTimeout(() => start(s), 0); });
 
 async function openQr(t) {
   const { data } = await sb.from('qr_codes').select('*').eq('token', t).maybeSingle();
@@ -237,3 +283,9 @@ async function openQr(t) {
   location.hash = '#' + data.target_hash;
 }
 app.addEventListener('change', e => { if (e.target.id === 'planSel') { S.planId = e.target.value; route(); } });
+
+app.addEventListener('input', e => {
+  const t = e.target;
+  if (t.classList && t.classList.contains('cpf')) t.value = cpfMask(t.value);
+  if (t.id === 'pw' && $('#pr')) $('#pr').innerHTML = pwList(t.value);
+});
