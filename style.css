@@ -71,3 +71,10 @@ nav a{display:flex;flex-direction:column;align-items:center;gap:3px}nav a.on{col
 
 .pwrules{list-style:none;padding:0;margin:8px 0 0;text-align:left;font-size:.8rem;color:#7f93a1}.pwrules li{padding:2px 0}.pwrules li.ok{color:#6fd3a0}
 .login .lead{color:#9fb5c1;font-size:.9rem;margin:-6px 0 14px}.login .warn{color:#f0c36b;background:#2a2412;border-radius:10px;padding:10px;font-size:.85rem;margin:0 0 8px}
+
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px}
+.tabs button{flex:none;min-height:38px;margin:0;padding:0 14px;background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.tabs button.on{background:var(--gold);color:#1b1409;border-color:var(--gold)}
+#adminbody>h2:first-child{display:none}
+.acts{display:flex;gap:6px 18px;flex-wrap:wrap;margin-top:6px}.acts .link{color:var(--gold)}.acts .danger{color:var(--bad)}
+button.ghost2{background:transparent;color:var(--ink);border:1px solid var(--line)}
