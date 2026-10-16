@@ -1,9 +1,8 @@
 // ===== CONFIGURAÇÃO: Supabase > Project Settings > API (use SOMENTE a chave anon/publishable) =====
 const SUPABASE_URL = 'https://vzldniltcoralimkkcgb.supabase.co/rest/v1/';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6bGRuaWx0Y29yYWxpbWtrY2diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2ODg4OTksImV4cCI6MjEwNzI2NDg5OX0.vQs36WQdXP8BWc8YHpYpV2_wjS5uG676n9vi4NH1prI';
-// =================================================================================================
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ6bGRuaWx0Y29yYWxpbWtrY2diIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2ODg4OTksImV4cCI6MjEwNzI2NDg5OX0.vQs36WQdXP8BWc8YHpYpV2_wjS5uG676n9vi4NH1prI';// =================================================================================================
 let sb; try { sb = supabase.createClient(new URL(SUPABASE_URL.trim()).origin, SUPABASE_KEY.trim()); } catch (e) { sb = null; }
-const $ = s => document.querySelector(s), app = $('#app');
+const $ = s => document.querySelector(s); let app = $('#app');
 const fail = m => { app.innerHTML = '<div class="card" style="margin:16px"><b>Não foi possível iniciar o Astell Home</b><p class="mute">' + m + '</p></div>'; };
 if (!sb || /COLE_AQUI/.test(SUPABASE_URL + SUPABASE_KEY)) { fail('Abra o arquivo app.js e preencha SUPABASE_URL e SUPABASE_KEY (Supabase > Project Settings > API) nas duas primeiras linhas.'); throw new Error('Supabase não configurado'); }
 addEventListener('error', e => { if (!app.innerHTML.trim()) fail('Erro: ' + e.message); });
@@ -12,6 +11,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmt = d => d ? new Date(d + 'T00:00').toLocaleDateString('pt-BR') : '—';
 const S = { profile: null, res: [], cur: null };
 const staff = () => ['admin', 'tech'].includes(S.profile?.role);
+const isAdmin = () => S.profile?.role === 'admin';
 function toast(m, err) { const t = $('#toast'); t.textContent = m; t.className = 'show' + (err ? ' err' : ''); setTimeout(() => t.className = '', 3500); }
 const addMonths = (d, m) => { const x = new Date(d + 'T00:00'); x.setMonth(x.getMonth() + m); return x; };
 function wState(w) { const end = addMonths(w.start_date, w.months), days = (end - new Date()) / 864e5;
@@ -22,8 +22,8 @@ const T = {
   warranties: { label: 'Garantias', order: 'start_date', f: [['system','Sistema ou componente'],['coverage','Descrição da cobertura'],['start_date','Data inicial','date'],['months','Prazo (meses)','number'],['notes','Condições e exclusões','textarea']],
     row: r => { const [s, c, end] = wState(r); return `<b>${esc(r.system)}</b> <span class="badge ${c}">${s}</span><p>${esc(r.coverage)}</p><span class="mute">${fmt(r.start_date)} até ${end.toLocaleDateString('pt-BR')}</span><p class="mute">${esc(r.notes)}</p>`; },
     note: 'Os prazos valem conforme contrato, fabricante e lei. As condições contratuais e legais prevalecem sobre estes indicadores.' },
-  maintenance_tasks: { label: 'Manutenção preventiva', order: 'next_due', f: [['name','Tarefa'],['system','Sistema'],['frequency','Periodicidade'],['last_done','Última execução','date'],['next_due','Próxima data','date'],['instructions','Instruções','textarea']],
-    row: r => { const late = r.next_due && new Date(r.next_due + 'T00:00') < new Date(); return `<b>${esc(r.name)}</b> <span class="badge ${late ? 'bad' : 'ok'}">${late ? 'Atrasada' : 'Em dia'}</span><p class="mute">${esc(r.system)} · ${esc(r.frequency)}</p>Última: ${fmt(r.last_done)} · Próxima: ${fmt(r.next_due)}<p class="mute">${esc(r.instructions)}</p>`; } },
+  maintenance_tasks: { label: 'Manutenção preventiva', order: 'next_due', f: [['name','Tarefa'],['system','Sistema'],['frequency','Periodicidade'],['last_done','Última execução','date'],['next_due','Próxima data','date'],['interval_months','Repetir a cada (meses)','number'],['status','Situação',['Pendente','Em andamento','Concluída','Cancelada']],['instructions','Instruções','textarea']],
+    row: r => { const st = r.status || 'Pendente', late = r.next_due && new Date(r.next_due + 'T00:00') < new Date() && !['Concluída', 'Cancelada'].includes(st); return `<b>${esc(r.name)}</b> <span class="badge ${late ? 'bad' : st === 'Concluída' ? 'ok' : ''}">${late ? 'Atrasada' : st}</span><p class="mute">${esc(r.system)} · ${esc(r.frequency)}</p>Última: ${fmt(r.last_done)} · Próxima: ${fmt(r.next_due)}<p class="mute">${esc(r.instructions)}</p>`; } },
   equipment: { label: 'Equipamentos', f: [['name','Nome'],['category','Categoria'],['maker','Fabricante'],['model','Modelo'],['serial','Nº de série'],['location','Localização']],
     row: r => `<b>${esc(r.name)}</b><span class="mute">${esc(r.category)} · ${esc(r.location)}</span><p>${esc(r.maker)} ${esc(r.model)} ${r.serial ? '· Série ' + esc(r.serial) : ''}</p>` },
   history_events: { label: 'Histórico da residência', order: 'event_date', f: [['event_date','Data','date'],['category','Categoria'],['description','Descrição','textarea']],
@@ -60,7 +60,14 @@ async function garantiasView() {
     `<h3>Prazos por sistema</h3><div class="card rows">${(data || []).map(w => { const [s, c, end] = wState(w); return `<div class="row"><span>${esc(w.system)}<br><span class="badge ${c}">${s}</span> <small class="mute">até ${end.toLocaleDateString('pt-BR')}</small>${w.coverage ? `<br><small class="mute">${esc(w.coverage)}</small>` : ''}${staff() ? `<br><button class="link" data-del="warranties:${w.id}">Excluir</button>` : ''}</span><b>${per(w.months)}</b></div>`; }).join('') || '<p class="empty">Nenhuma garantia cadastrada ainda.</p>'}</div>` +
     linkrow('assistencia', 'Solicitar assistência', 'Precisa de suporte? Fale com a nossa equipe.', 'phones') + `<p class="notice">${T.warranties.note}</p>`;
 }
-const input = ([k, l, t = 'text']) => `<label>${l}${t === 'textarea' ? `<textarea name="${k}" rows="3"></textarea>` : `<input name="${k}" type="${t}" ${['system','name','description','months','start_date'].includes(k) ? 'required' : ''}>`}</label>`;
+const DEFREQ = ['system', 'name', 'description', 'months', 'start_date', 'event_date'];
+const fld = ([k, l, t = 'text', req], v = {}) => {
+  const val = v[k] ?? '', r = (req ?? DEFREQ.includes(k)) ? 'required' : '';
+  if (Array.isArray(t)) return `<label>${l}<select name="${k}">${t.map(o => `<option ${o === val ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+  return `<label>${l}${t === 'textarea' ? `<textarea name="${k}" rows="3" ${r}>${esc(val)}</textarea>` : `<input name="${k}" type="${t}" value="${esc(val)}" ${r}>`}</label>`;
+};
+const input = f => fld(f);
+const RES_F = [['code', 'Código (ex.: AST-2026-002)', 'text', true], ['name', 'Nome da residência', 'text', true], ['address', 'Endereço'], ['area_m2', 'Área construída (m²)', 'number'], ['floors', 'Pavimentos', 'number'], ['build_system', 'Sistema construtivo'], ['project_no', 'Nº do projeto'], ['start_date', 'Início da obra', 'date'], ['delivery_date', 'Entrega', 'date'], ['tech_lead', 'Responsável técnico'], ['notes', 'Observações', 'textarea']];
 const sel = (name, label, opts) => `<label>${label}<select name="${name}">${opts.map(o => `<option>${o}</option>`).join('')}</select></label>`;
 const formOf = (id, title, inner, btn = 'Salvar') => `<details class="card"><summary>${title}</summary><form data-form="${id}">${inner}<button>${btn}</button></form></details>`;
 const clean = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v === '' ? null : v]));
@@ -69,8 +76,12 @@ async function listView(k) {
   const c = T[k];
   const { data, error } = await sb.from(k).select('*').eq('residence_id', S.cur.id).order(c.order || 'created_at', { ascending: false });
   if (error) return toast('Não foi possível carregar os dados.', 1);
-  app.innerHTML = `<h2>${c.label}</h2>` + (staff() ? formOf(k, 'Adicionar', c.f.map(input).join('')) : '') +
-    (data.length ? data.map(r => `<div class="card">${c.row(r)}${staff() ? `<button class="link" data-del="${k}:${r.id}">Excluir</button>` : ''}</div>`).join('') : '<p class="empty">Nada cadastrado ainda. A Astell publica as informações da sua casa aqui.</p>') +
+  S.rows = S.rows || {}; S.rows[k] = data;
+  const ed = S.edit && S.edit.k === k ? data.find(r => r.id === S.edit.id) : null;
+  const form = !staff() ? '' : ed ? `<form class="card" data-form="edit:${k}" data-id="${ed.id}"><b>Editar</b>${c.f.map(f => fld(f, ed)).join('')}<button>Salvar alterações</button><button type="button" class="ghost2" data-cancel>Cancelar</button></form>` : formOf(k, 'Adicionar', c.f.map(input).join(''));
+  const btns = r => !staff() ? '' : `<div class="acts"><button class="link" data-edit="${k}:${r.id}">Editar</button>${'visible' in r ? `<button class="link" data-vis="${k}:${r.id}">${r.visible ? 'Ocultar do cliente' : 'Mostrar ao cliente'}</button>` : ''}${k === 'maintenance_tasks' ? `<button class="link" data-done="${r.id}">Marcar como executada</button>` : ''}<button class="link danger" data-del="${k}:${r.id}">Excluir</button></div>`;
+  app.innerHTML = `<h2>${c.label}</h2>` + form +
+    (data.length ? data.map(r => `<div class="card">${c.row(r)}${r.visible === false ? '<p><span class="badge">Oculto do cliente</span></p>' : ''}${btns(r)}</div>`).join('') : '<p class="empty">Nada cadastrado ainda. A Astell publica as informações da sua casa aqui.</p>') +
     (c.note ? `<p class="notice">${c.note}</p>` : '');
 }
 
@@ -82,7 +93,7 @@ const views = {
     <a class="rescard" href="#casa">${ico(IC.home)}<span><b>${esc(r.name)}</b><small>${esc(r.address || r.code)}</small></span>${ico(IC.chev)}</a>
     <img class="heroimg" src="img/casa.jpg" alt="Fachada da residência">
     <div class="tiles">${TILES.map(([h, t, s, i]) => `<a class="tile" href="#${h}">${ico(IC[i])}<b>${t}</b><small>${s}</small></a>`).join('')}</div>
-    <h3>Próximos cuidados</h3>${(m || []).map(x => `<div class="card"><b>${esc(x.name)}</b>${fmt(x.next_due)}</div>`).join('') || '<p class="empty">Nenhum cuidado agendado.</p>'}`;
+    ${isAdmin() ? linkrow('admin', 'Painel administrativo', 'Residências, proprietários, documentos e histórico.', 'shield') : ''}<h3>Próximos cuidados</h3>${(m || []).map(x => `<div class="card"><b>${esc(x.name)}</b>${fmt(x.next_due)}</div>`).join('') || '<p class="empty">Nenhum cuidado agendado.</p>'}`;
   },
   casa() {
     const r = S.cur, rows = [['Código', r.code], ['Endereço', r.address], ['Área construída', r.area_m2 && r.area_m2 + ' m²'], ['Pavimentos', r.floors], ['Sistema construtivo', r.build_system], ['Nº do projeto', r.project_no], ['Início da obra', fmt(r.start_date)], ['Entrega', fmt(r.delivery_date)], ['Responsável técnico', r.tech_lead], ['Observações', r.notes]];
@@ -92,8 +103,9 @@ const views = {
   historico: () => listView('history_events'), contatos: () => listView('contacts'),
   async documentos() {
     const { data } = await sb.from('documents').select('*').eq('residence_id', S.cur.id).order('created_at', { ascending: false });
+    S.rows = S.rows || {}; S.rows.documents = data;
     const up = staff() ? formOf('doc', 'Enviar documento', `<label>Título<input name="title" required></label>${sel('category', 'Categoria', DOC_CATS)}<label>Versão<input name="version"></label><label>Descrição<input name="description"></label><label>Arquivo<input name="file" type="file" required></label>`, 'Enviar') : '';
-    app.innerHTML = `<h2>Documentos</h2>${up}` + ((data || []).map(d => `<div class="card"><b>${esc(d.title)}</b><span class="mute">${esc(d.category)} · v${esc(d.version || '1')} · ${fmt(d.created_at.slice(0, 10))}</span><p>${esc(d.description)}</p><button data-open="${esc(d.path)}">Abrir</button>${staff() ? `<button class="link" data-deldoc="${d.id}|${esc(d.path)}">Excluir</button>` : ''}</div>`).join('') || '<p class="empty">Nenhum documento disponível ainda.</p>');
+    app.innerHTML = `<h2>Documentos</h2>${up}` + ((data || []).map(d => `<div class="card"><b>${esc(d.title)}</b><span class="mute">${esc(d.category)} · v${esc(d.version || '1')} · ${fmt(d.created_at.slice(0, 10))}</span><p>${esc(d.description)}</p><button data-open="${esc(d.path)}">Abrir</button>${staff() ? `<button class="link" data-vis="documents:${d.id}">${d.visible ? 'Ocultar do cliente' : 'Mostrar ao cliente'}</button> <button class="link" data-deldoc="${d.id}|${esc(d.path)}">Excluir</button>` : ''}</div>`).join('') || '<p class="empty">Nenhum documento disponível ainda.</p>');
   },
   async assistencia() {
     const { data } = await sb.from('service_requests').select('*').eq('residence_id', S.cur.id).order('created_at', { ascending: false });
@@ -125,25 +137,62 @@ const views = {
   },
   mais() {
     const l = [['documentos', 'Documentos'], ['garantias', 'Garantias'], ['equipamentos', 'Equipamentos'], ['historico', 'Histórico'], ['contatos', 'Contatos'], ['qr', 'QR Codes'], ['planta', 'Planta técnica']];
-    if (staff()) l.push(['admin', 'Painel administrativo']);
+    if (isAdmin()) l.push(['admin', 'Painel administrativo']);
     app.innerHTML = `<h2>Perfil</h2><div class="card"><b>${esc(S.profile.name || '')}</b><span class="mute">${esc(S.profile.email || '')}</span><button data-out>Sair da conta</button></div><div class="menu">${l.map(([h, t]) => `<a href="#${h}">${t}</a>`).join('')}</div><p class="notice">Pendentes nesta versão: camadas construtivas, emergência, auditoria, PWA e notificações.</p>`;
   },
   async admin() {
-    if (!staff()) return location.hash = '#home';
-    const { data: cl } = await sb.from('client_cpfs').select('id,name,cpf_mask,claimed_by').order('created_at', { ascending: false });
-    app.innerHTML = `<h2>Painel Astell</h2>` +
-      formOf('newres', 'Nova residência', [['code', 'Código (ex.: AST-2026-002)'], ['name', 'Nome'], ['address', 'Endereço'], ['area_m2', 'Área (m²)', 'number'], ['floors', 'Pavimentos', 'number'], ['build_system', 'Sistema construtivo'], ['project_no', 'Nº do projeto'], ['start_date', 'Início', 'date'], ['delivery_date', 'Entrega', 'date'], ['tech_lead', 'Responsável técnico'], ['notes', 'Observações', 'textarea']].map(i => input(i).replace('required', '').replace(/name="(code|name)"/, 'name="$1" required')).join('')) +
-      formOf('cpfnew', 'Cadastrar cliente (CPF)', `<label>Nome<input name="name" required></label><label>CPF<input name="cpf" class="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" required></label><label>E-mail do cliente (opcional, recomendado)<input name="email" type="email"></label>`, 'Cadastrar') +
-      formOf('link', 'Vincular cliente à residência atual', `<label>Cliente<select name="cpf_id">${(cl || []).map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.cpf_mask)}</option>`).join('')}</select></label>`, 'Vincular') +
-      '<h3>Clientes cadastrados</h3>' + ((cl || []).map(c => `<div class="card"><b>${esc(c.name)}</b><span class="mute">${esc(c.cpf_mask)} · ${c.claimed_by ? 'Acesso ativo' : 'Aguardando primeiro acesso'}</span>${c.claimed_by ? `<br><button class="link" data-rel="${c.id}">Liberar CPF</button>` : ''}</div>`).join('') || '<p class="empty">Nenhum cliente cadastrado.</p>') +
-      '<p class="notice">O cliente entra com Google ou com e-mail e senha e depois informa o CPF. Se você cadastrar o e-mail dele, só a conta com esse e-mail consegue usar o CPF.</p>';
+    if (!isAdmin()) return location.hash = '#home';
+    const tabs = [['res', 'Residência'], ['own', 'Proprietários'], ['docs', 'Documentos'], ['eq', 'Equipamentos'], ['gar', 'Garantias'], ['man', 'Manutenções'], ['ast', 'Assistência'], ['his', 'Histórico']];
+    if (!ADMIN_TABS[S.tab]) S.tab = 'res';
+    app.innerHTML = `<h2>Painel Astell</h2><p class="mute">Residência selecionada: <b>${S.cur ? esc(S.cur.name) + ' — ' + esc(S.cur.code) : 'nenhuma'}</b></p><div class="tabs">${tabs.map(([k, l]) => `<button class="${S.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="adminbody"></div>`;
+    const main = app; app = $('#adminbody');
+    try { if (!S.cur && !['res', 'own'].includes(S.tab)) app.innerHTML = '<p class="empty">Crie ou selecione uma residência primeiro.</p>'; else await ADMIN_TABS[S.tab](); } finally { app = main; }
   },
 };
+
+const ADMIN_TABS = { res: resTab, own: ownTab, docs: () => views.documentos(), eq: () => listView('equipment'), gar: () => listView('warranties'), man: () => listView('maintenance_tasks'), ast: () => views.assistencia(), his: histTab };
+const TBL = { residences: 'Residência', documents: 'Documento', warranties: 'Garantia', maintenance_tasks: 'Manutenção', equipment: 'Equipamento', history_events: 'Evento do histórico', contacts: 'Contato', building_items: 'Item construtivo', floorplans: 'Planta', plan_points: 'Ponto da planta', qr_codes: 'QR Code', service_requests: 'Assistência' };
+const ACT = { INSERT: 'criou', UPDATE: 'alterou', DELETE: 'excluiu' };
+
+async function resTab() {
+  const list = S.res.map(r => `<div class="card"><b>${esc(r.name)}</b><span class="mute">${esc(r.code)} · ${esc(r.address || '')}</span>${S.cur && r.id === S.cur.id ? '<p><span class="badge ok">Selecionada</span></p>' : `<button class="link" data-pick="${r.id}">Selecionar</button>`}</div>`).join('');
+  app.innerHTML = formOf('newres', 'Nova residência', RES_F.map(input).join('')) +
+    (S.cur ? formOf('editres', 'Editar dados da residência selecionada', RES_F.map(f => fld(f, S.cur)).join(''), 'Salvar alterações') : '') +
+    '<h3>Residências cadastradas</h3>' + (list || '<p class="empty">Nenhuma residência cadastrada.</p>');
+}
+
+async function ownTab() {
+  const { data: cl } = await sb.from('client_cpfs').select('id,name,cpf_mask,claimed_by').order('created_at', { ascending: false });
+  const { data: lk } = S.cur ? await sb.from('cpf_residences').select('cpf_id').eq('residence_id', S.cur.id) : { data: [] };
+  const linked = new Set((lk || []).map(x => x.cpf_id));
+  app.innerHTML = formOf('cpfnew', 'Cadastrar proprietário (CPF)', `<label>Nome<input name="name" required></label><label>CPF<input name="cpf" class="cpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" required></label><label>E-mail do proprietário (opcional, recomendado)<input name="email" type="email"></label>`, 'Cadastrar') +
+    (S.cur ? formOf('link', 'Vincular proprietário à residência selecionada', `<label>Proprietário<select name="cpf_id">${(cl || []).map(c => `<option value="${c.id}">${esc(c.name)} — ${esc(c.cpf_mask)}</option>`).join('')}</select></label>`, 'Vincular') : '') +
+    '<h3>Proprietários cadastrados</h3>' + ((cl || []).map(c => `<div class="card"><b>${esc(c.name)}</b><span class="mute">${esc(c.cpf_mask)} · ${c.claimed_by ? 'Acesso ativo' : 'Aguardando primeiro acesso'}</span>${linked.has(c.id) ? '<p><span class="badge ok">Vinculado a esta residência</span></p>' : ''}${c.claimed_by ? `<button class="link" data-rel="${c.id}">Liberar CPF</button>` : ''}</div>`).join('') || '<p class="empty">Nenhum proprietário cadastrado.</p>') +
+    '<p class="notice">O proprietário entra com Google ou com e-mail e senha e depois informa o CPF. Se você cadastrar o e-mail dele, só a conta com esse e-mail consegue usar o CPF.</p>';
+}
+
+async function histTab() {
+  const rid = S.cur.id, f = S.hf || {};
+  let q = sb.from('history_events').select('*').eq('residence_id', rid).order('event_date', { ascending: false }).limit(200);
+  let a = sb.from('audit_log').select('*').eq('residence_id', rid).order('at', { ascending: false }).limit(100);
+  if (f.cat) q = q.ilike('category', '%' + f.cat + '%');
+  if (f.from) { q = q.gte('event_date', f.from); a = a.gte('at', f.from); }
+  if (f.to) { q = q.lte('event_date', f.to); a = a.lte('at', f.to + 'T23:59:59'); }
+  const [{ data: ev }, { data: au, error }, { data: pr }] = await Promise.all([q, a, sb.from('profiles').select('id,name')]);
+  const who = Object.fromEntries((pr || []).map(p => [p.id, p.name]));
+  const what = x => { const n = x.new_data || x.old_data || {}; if (x.action === 'UPDATE') return 'campos: ' + Object.keys(n).filter(k => k !== 'created_at' && JSON.stringify((x.old_data || {})[k]) !== JSON.stringify(n[k])).join(', '); return n.title || n.name || n.system || n.protocol || n.label || n.description || ''; };
+  app.innerHTML = `<form class="card" data-form="hf"><b>Filtros</b><label>Categoria contém<input name="cat" value="${esc(f.cat || '')}"></label><label>De<input name="from" type="date" value="${esc(f.from || '')}"></label><label>Até<input name="to" type="date" value="${esc(f.to || '')}"></label><button>Filtrar</button><button type="button" class="ghost2" data-hclear>Limpar filtros</button></form>
+    <h3>Linha do tempo da residência</h3>` + ((ev || []).map(e => `<div class="card"><b>${fmt(e.event_date)}</b><span class="mute">${esc(e.category)}</span><p>${esc(e.description)}</p></div>`).join('') || '<p class="empty">Nenhum evento no período.</p>') +
+    '<h3>Alterações registradas no sistema</h3>' + (error ? '<p class="empty">O registro de alterações ainda não está disponível. Rode o schema_v5.sql.</p>' : ((au || []).map(x => `<div class="card"><b>${esc(who[x.user_id] || 'Sistema')} ${ACT[x.action] || ''} ${esc((TBL[x.table_name] || x.table_name).toLowerCase())}</b><span class="mute">${new Date(x.at).toLocaleString('pt-BR')}</span><p class="mute">${esc(what(x))}</p></div>`).join('') || '<p class="empty">Nenhuma alteração registrada.</p>'));
+}
 
 // Eventos
 app.addEventListener('submit', async e => {
   e.preventDefault(); const f = e.target, id = f.dataset.form, o = clean(Object.fromEntries(new FormData(f))), rid = S.cur?.id; let r;
-  if (T[id]) r = await sb.from(id).insert({ ...o, residence_id: rid });
+  if (id === 'hf') { S.hf = o; return route(); }
+  if (id.startsWith('edit:')) { r = await sb.from(id.slice(5)).update(o).eq('id', f.dataset.id); S.edit = null; }
+  else if (id === 'editres') { r = await sb.from('residences').update(o).eq('id', rid); if (!r.error) { await loadRes(rid); return toast('Dados da residência salvos.'); } }
+  else if (T[id]) r = await sb.from(id).insert({ ...o, residence_id: rid });
   else if (id === 'req') r = await sb.from('service_requests').insert({ ...o, residence_id: rid, protocol: 'AST-' + Date.now().toString(36).toUpperCase() });
   else if (id === 'upd') { r = await sb.from('service_requests').update(o).eq('id', f.dataset.id); if (!r.error) await sb.from('history_events').insert({ residence_id: rid, category: 'Assistência', description: 'Solicitação atualizada: ' + o.status }); }
   else if (id === 'bitem') r = await sb.from('building_items').insert({ ...o, residence_id: rid });
@@ -162,6 +211,15 @@ app.addEventListener('submit', async e => {
 app.addEventListener('click', async e => {
   const d = e.target.dataset;
   if (d.rel && confirm('Liberar este CPF? O acesso atual do cliente será removido e outro cadastro poderá usá-lo.')) { const { error } = await sb.rpc('admin_release_cpf', { p_cpf: d.rel }); error ? toast('Não foi possível liberar.', 1) : toast('CPF liberado.'); route(); }
+  if (d.tab) { S.tab = d.tab; S.edit = null; route(); }
+  if (d.pick) { S.cur = S.res.find(r => r.id === d.pick); $('#resSel').value = d.pick; route(); }
+  if (d.edit) { const [k, id] = d.edit.split(':'); S.edit = { k, id }; route(); }
+  if (d.cancel !== undefined) { S.edit = null; route(); }
+  if (d.hclear !== undefined) { S.hf = {}; route(); }
+  if (d.vis) { const [k, id] = d.vis.split(':'), r = S.rows[k].find(x => x.id === id); const { error } = await sb.from(k).update({ visible: !r.visible }).eq('id', id); error ? toast('Não foi possível alterar.', 1) : toast(r.visible ? 'Oculto do cliente.' : 'Visível ao cliente.'); route(); }
+  if (d.done) { const t = S.rows.maintenance_tasks.find(x => x.id === d.done), today = new Date().toISOString().slice(0, 10), nx = t.interval_months ? addMonths(today, +t.interval_months).toISOString().slice(0, 10) : null;
+    await sb.from('maintenance_tasks').update({ last_done: today, next_due: nx, status: nx ? 'Pendente' : 'Concluída' }).eq('id', t.id);
+    await sb.from('history_events').insert({ residence_id: S.cur.id, category: 'Manutenção', description: 'Manutenção executada: ' + t.name }); toast('Execução registrada.'); route(); }
   if (d.out !== undefined) sb.auth.signOut();
   if (d.print !== undefined) print();
   if (d.place !== undefined) { S.place = !S.place; S.pend = null; route(); }
@@ -178,10 +236,10 @@ function route() {
   const h = location.hash.slice(1) || 'home';
   if (h.startsWith('qr/')) return openQr(h.slice(3));
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + h));
-  if (!S.cur && h !== 'admin') return app.innerHTML = '<p class="empty">Nenhuma residência vinculada à sua conta. Fale com a Astell.</p>';
+  if (!S.cur && h !== 'admin') return app.innerHTML = isAdmin() ? '<p class="empty">Nenhuma residência cadastrada. <a href="#admin">Abra o painel administrativo</a> para criar a primeira.</p>' : '<p class="empty">Nenhuma residência vinculada à sua conta. Fale com a Astell.</p>';
   (views[h] || views.home)();
 }
-addEventListener('hashchange', route);
+addEventListener('hashchange', () => { S.edit = null; route(); });
 
 async function loadRes(selectId) {
   const { data } = await sb.from('residences').select('*').order('created_at');
